@@ -8,8 +8,7 @@
 #include "nRF24L01.h"
 #include "RF24.h"
 
-RF24 radio(9, 10);
-
+RF24 radio(16, 10);
 const uint8_t address[6] = { "NrfMQ" };
 const uint8_t channel = 0x6f;
 
@@ -33,10 +32,9 @@ void initWatchdog() {
     MCUSR &= ~(1 << WDRF);              // Just to be safe since we can not clear WDE if WDRF is set
     cli();                              // disable interrupts so we do not get interrupted while doing timed sequence
     WDTCSR |= (1 << WDCE) | (1 << WDE); // First step of timed sequence, we have 4 cycles after this to make changes to WDE and WD timeout
-//    WDTCSR = 1 << WDP0 | 1 << WDP2;     // timeout in 0.5 second, disable reset mode. Must be done in one operation
-    WDTCSR = 1 << WDP3 | 1 << WDP0;     // timeout in 8 second, disable reset mode. Must be done in one operation
+    WDTCSR = 1 << WDP3 | 1 << WDP0     // timeout in 8 second, disable reset mode. Must be done in one operation
+    | (1 << WDIE);                      // enable watchdog interrupt only mode
     sei();
-    WDTCSR |= _BV(WDIE);                // enable watchdog interrupt only mode 
 }
 
 ISR(WDT_vect) {}
@@ -72,18 +70,18 @@ int8_t getInternalTemperature() {
 
 uint8_t getWatertankLevel() {
     const uint8_t PORD_MASK = 0b11111100;
-    const uint8_t PORC_MASK = 0b00000011;
+    const uint8_t PORB_MASK = 0b00000011;
 
     // enable pullup
     PORTD |= PORD_MASK;
-    PORTC |= PORC_MASK;
+    PORTB |= PORB_MASK;
     _delay_ms(1); // recharge parasite capacitance
 
-    uint8_t electrodes = ~(PIND & PORD_MASK | PINC & PORC_MASK);
+    uint8_t electrodes = ~((PIND & PORD_MASK) >> 2 | (PINB & PORB_MASK) << 6);
 
     // disable pullup
     PORTD &= ~PORD_MASK;
-    PORTC &= ~PORC_MASK;
+    PORTB &= ~PORB_MASK;
 
     uint8_t level = 0;
     for(int i = 0; i < 8; i++) {
@@ -95,6 +93,7 @@ uint8_t getWatertankLevel() {
         electrodes >>= 1;
     }
     level *= 15; // 0..8 => 0..120
+    if (level == 90) level = 100;
     return level;
 }
 
@@ -165,11 +164,6 @@ void sendInternalTemperature(int8_t temperature) {
 }
 
 void setup() {
-    // all input
-    DDRB &= 0b00111110; // pb1..pb5 dont touch nrf24
-    DDRC = 0;
-    DDRD &= 0b00000011; // dont touch uart
-
     initRadio();
     initWatchdog();
     sendMQTTMessage("watertank", "Start!");
