@@ -32,7 +32,7 @@ void initWatchdog() {
     MCUSR &= ~(1 << WDRF);              // Just to be safe since we can not clear WDE if WDRF is set
     cli();                              // disable interrupts so we do not get interrupted while doing timed sequence
     WDTCSR |= (1 << WDCE) | (1 << WDE); // First step of timed sequence, we have 4 cycles after this to make changes to WDE and WD timeout
-    WDTCSR = 1 << WDP3 | 1 << WDP0     // timeout in 8 second, disable reset mode. Must be done in one operation
+    WDTCSR = 1 << WDP3 | 1 << WDP0      // timeout in 8 second, disable reset mode. Must be done in one operation
     | (1 << WDIE);                      // enable watchdog interrupt only mode
     sei();
 }
@@ -71,6 +71,7 @@ int8_t getInternalTemperature() {
 uint8_t getWatertankLevel() {
     const uint8_t PORD_MASK = 0b11111100;
     const uint8_t PORB_MASK = 0b00000011;
+    const uint8_t LEVELS[9] = {0, 10, 20, 30, 40, 50, 75, 100, 110};
 
     // enable pullup
     PORTD |= PORD_MASK;
@@ -92,9 +93,7 @@ uint8_t getWatertankLevel() {
         }
         electrodes >>= 1;
     }
-    level *= 15; // 0..8 => 0..120
-    if (level == 90) level = 100;
-    return level;
+    return LEVELS[level];
 }
 
 void enterSleep(void) {
@@ -175,7 +174,7 @@ void setup() {
 }
 
 void loop() {
-    const uint8_t period = 225; // 8sec * 225 = update every 30 min or on level change every 8 sec
+    const uint8_t period = 75; // 8sec * 75 = update every 10 min or on level change every 8 sec
     static uint8_t counter = 0;
     uint8_t level = getWatertankLevel();
     static uint8_t old_level;
