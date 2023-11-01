@@ -1,0 +1,6 @@
+*/Debug/
+*/Release/
+*.csv
+*.atsuo
+*.componentinfo.xml
+*.rar
