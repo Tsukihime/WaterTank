@@ -4,7 +4,7 @@ void NRF_connect_init() {
     PORTC &= ~(1 << PINC2);
     PORTB |= (1 << PINB2);
 
-    DDRB |= (1 << PINB1) | (1 << PINB2) | (1 << PINB3) | (0 << PINB4) | (1 << PINB5);
+    DDRB |= (1 << PINB2) | (1 << PINB3) | (0 << PINB4) | (1 << PINB5);
     DDRC |= (1 << PINC2);
 
 	PRR &= ~(1 << PRSPI); // Enable SPI
