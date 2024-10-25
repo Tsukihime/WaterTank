@@ -13,6 +13,7 @@
 extern "C" {
     #include "rf24/nrf_connect.h"
     #include "rf24/RF24.h"
+    #include "rf24/RF24MQTTGateway.h"
 }
 
 uint8_t gateway_address[6] = { "NrfMQ" };
@@ -98,21 +99,20 @@ uint8_t getWatertankLevel() {
     return LEVELS[level];
 }
 
-void mqttPublish(const char* topic, const char* payload) {
-    char buffer[32];
-    uint8_t topicLength = strlen(topic);
-    uint8_t payloadLength = strlen(payload);
-    uint8_t messageLength = topicLength + payloadLength + 2;
-    if(messageLength > 32) return;
+#include <avr/pgmspace.h>
+const char temp_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_t/config";
+const char temp_conf_payload[] PROGMEM  = R"({"unique_id":"wttemp","name":"Temperature","state_topic":"home/watertank","unit_of_measurement":"°C","icon":"hass:thermometer","value_template":"{{ value_json.temp }}","device":{"identifiers":["231ed3"],"name":"Watertank Sensor","manufacturer":"Tsukihime","model":"nRF24 Watertank Sensor","sw_version":"0.1"}})";
 
-    buffer[0] = topicLength;
-    buffer[1] = payloadLength;
-    memcpy(&buffer[2], topic, topicLength);
-    memcpy(&buffer[2 + topicLength], payload, payloadLength);
+const char lvl_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_l/config";
+const char lvl_conf_payload[] PROGMEM  = R"({"unique_id":"wtlvl","name":"Water level","state_topic":"home/watertank","unit_of_measurement":"%","icon":"mdi:water-percent","value_template":"{{ value_json.lvl }}","device":{"identifiers":["231ed3"]}})";
 
-    RF24_powerUp();
-    RF24_write(buffer, messageLength, false);
-    RF24_powerDown();
+const char batt_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_b/config";
+const char batt_conf_payload[] PROGMEM  = R"({"unique_id":"wtbatt","name":"Battery","state_topic":"home/watertank","unit_of_measurement":"V","icon":"hass:battery","value_template":"{{ value_json.batt }}","device":{"identifiers":["231ed3"]}})";
+    
+void identify() {
+    RF24MQTT_sendMessage_P(temp_conf_topic, temp_conf_payload, true);
+    RF24MQTT_sendMessage_P(lvl_conf_topic, lvl_conf_payload, true);
+    RF24MQTT_sendMessage_P(batt_conf_topic, batt_conf_payload, true);
 }
 
 void initAll() {
@@ -139,7 +139,7 @@ void initAll() {
     RF24_setDataRate(RF24_1MBPS);
     RF24_setCRCLength(RF24_CRC_8);
     RF24_setChannel(gateway_channel);
-    RF24_setAutoAck(false);
+    RF24_setAutoAck(true);
     RF24_openWritingPipe(gateway_address);
     RF24_stopListening();
 
@@ -148,32 +148,48 @@ void initAll() {
 
 int main(void) {
     initAll();
-    mqttPublish("watertank", "Start!");
+    RF24MQTT_sendShortMessage("watertank", "Start!");
+    identify();
 
     const uint8_t period = 75; // 8sec * 75 = update every 10 min or on level change every 8 sec
+    const uint16_t identify_period = 5400; // 8sec * 5400 = update every 12 hours
     uint8_t counter = 0;
+    uint16_t identify_counter = 0;
     uint8_t level = 0;
     uint8_t old_level = 0;
-    char string[13];
 
     while (1) {
         level = getWatertankLevel();
 
         if(level != old_level || counter == 0) {
+            char buff[40] = "";
+            char string[13];
+
             uint8_t len = int32ToStrFixedPoint(getBatteryVoltage(), string, 3);
             string[len - 1] = 0;
-            mqttPublish("watertank/batt", string);
+            strcat(buff,"{\"batt\":");
+            strcat(buff, string);
 
             int32ToStrFixedPoint(level, string);
-            mqttPublish("watertank/level", string);
+            strcat(buff,",\"lvl\":");
+            strcat(buff, string);
 
             int32ToStrFixedPoint(getInternalTemperature(), string);
-            mqttPublish("watertank/temp", string);
+            strcat(buff,",\"temp\":");
+            strcat(buff, string);
+            strcat(buff,"}");
+
+            RF24MQTT_sendMessage("home/watertank", buff, false);
         }
 
         old_level = level;
-              
+
         if(++counter >= period) counter = 0;
+        if(++identify_counter >= identify_period) {
+            identify_counter = 0;
+            identify();
+        }
+        
         enterSleep();
     }
 }
