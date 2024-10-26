@@ -101,13 +101,13 @@ uint8_t getWatertankLevel() {
 
 #include <avr/pgmspace.h>
 const char temp_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_t/config";
-const char temp_conf_payload[] PROGMEM  = R"({"unique_id":"wttemp","name":"Temperature","state_topic":"home/watertank","unit_of_measurement":"°C","icon":"hass:thermometer","value_template":"{{ value_json.temp }}","device":{"identifiers":["231ed3"],"name":"Watertank Sensor","manufacturer":"Tsukihime","model":"nRF24 Watertank Sensor","sw_version":"0.1"}})";
+const char temp_conf_payload[] PROGMEM  = R"({"uniq_id":"wttemp","name":"Temperature","dev_cla":"temperature","stat_t":"home/watertank","unit_of_meas":"°C","val_tpl":"{{value_json.temp}}","dev":{"ids":["231ed3"],"name":"Watertank Sensor","mf":"Tsukihime","mdl":"nRF24 Watertank Sensor"}})";
 
 const char lvl_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_l/config";
-const char lvl_conf_payload[] PROGMEM  = R"({"unique_id":"wtlvl","name":"Water level","state_topic":"home/watertank","unit_of_measurement":"%","icon":"mdi:water-percent","value_template":"{{ value_json.lvl }}","device":{"identifiers":["231ed3"]}})";
+const char lvl_conf_payload[] PROGMEM  = R"({"uniq_id":"wtlvl","name":"Water level","stat_t":"home/watertank","unit_of_meas":"%","icon":"mdi:water-percent","val_tpl":"{{value_json.lvl}}","dev":{"ids":["231ed3"]}})";
 
 const char batt_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_b/config";
-const char batt_conf_payload[] PROGMEM  = R"({"unique_id":"wtbatt","name":"Battery","state_topic":"home/watertank","unit_of_measurement":"V","icon":"hass:battery","value_template":"{{ value_json.batt }}","device":{"identifiers":["231ed3"]}})";
+const char batt_conf_payload[] PROGMEM  = R"({"uniq_id":"wtbatt","name":"Battery","dev_cla":"battery","stat_t":"home/watertank","unit_of_meas":"%","val_tpl":"{{value_json.batt}}","dev":{"ids":["231ed3"]}})";
     
 void identify() {
     RF24MQTT_sendMessage_P(temp_conf_topic, temp_conf_payload, true);
@@ -164,9 +164,9 @@ int main(void) {
         if(level != old_level || counter == 0) {
             char buff[40] = "";
             char string[13];
-
-            uint8_t len = int32ToStrFixedPoint(getBatteryVoltage(), string, 3);
-            string[len - 1] = 0;
+            
+            int16_t batt = clamp(((int16_t)getBatteryVoltage() - 2000 + 5) / 10, 0, 100); 
+            int32ToStrFixedPoint(batt, string);
             strcat(buff,"{\"batt\":");
             strcat(buff, string);
 
