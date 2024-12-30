@@ -1,11 +1,11 @@
-#include "nrf_connect.h"
+#include "RF24_SPI.h"
 
-void NRF_connect_init() {
-    PORTC &= ~(1 << PINC2);
-    PORTB |= (1 << PINB2);
+void RF24_spi_init() {
+	RF24_ce_set(0);
+	RF24_csn_set(1);
 
-    DDRB |= (1 << PINB2) | (1 << PINB3) | (0 << PINB4) | (1 << PINB5);
-    DDRC |= (1 << PINC2);
+    DDRB |= (1 << PINB1) | (1 << PINB2) | (1 << PINB3) | (1 << PINB5);
+	DDRB &= ~(1 << PINB4);
 
 	PRR &= ~(1 << PRSPI); // Enable SPI
     SPSR = (1 << SPI2X);  // Double SPI speed
@@ -19,24 +19,13 @@ void NRF_connect_init() {
 	       | (0 << SPR1) | (0 << SPR0); /* SPI Clock rate selection: fosc/4 */
 }
 
-uint8_t SPI_0_exchange_byte(uint8_t data)
-{
+uint8_t RF24_spi_exchange_byte(uint8_t data) {
 	SPDR = data;
 	while (!(SPSR & (1 << SPIF)));
 	return SPDR;
 }
 
-void SPI_0_exchange_block(void *block, uint8_t size) {
-	uint8_t *b = (uint8_t *)block;
-	while (size--) {
-		SPDR = *b;
-		while (!(SPSR & (1 << SPIF)));
-		*b = SPDR;
-		b++;
-	}
-}
-
-void SPI_0_write_block(void *block, uint8_t size) {
+void RF24_spi_write_block(void *block, uint8_t size) {
 	uint8_t *b = (uint8_t *)block;
 	while (size--) {
 		SPDR = *b;
@@ -45,7 +34,7 @@ void SPI_0_write_block(void *block, uint8_t size) {
 	}
 }
 
-void SPI_0_read_block(void *block, uint8_t size) {
+void RF24_spi_read_block(void *block, uint8_t size) {
 	uint8_t *b = (uint8_t *)block;
 	while (size--) {
 		SPDR = 0;
@@ -55,7 +44,7 @@ void SPI_0_read_block(void *block, uint8_t size) {
 	}
 }
 
-void CSN_set_level(bool level) {
+void RF24_csn_set(uint8_t level) {
     if (level) {
         PORTB |= (1 << PINB2);
     } else {
@@ -63,10 +52,10 @@ void CSN_set_level(bool level) {
     }     
 }
 
-void CE_set_level(bool level) {
+void RF24_ce_set(uint8_t level) {
     if (level) {
-        PORTC |= (1 << PINC2);
-        } else {
-        PORTC &= ~(1 << PINC2);
+        PORTB |= (1 << PINB1);
+    } else {
+        PORTB &= ~(1 << PINB1);
     }
 }

@@ -11,7 +11,7 @@
 
 #include "nRF24L01.h"
 #include "RF24.h"
-#include "nrf_connect.h"
+#include "RF24_SPI.h"
 
 uint8_t payload_size = 32;
 uint8_t addr_width = 5;
@@ -23,37 +23,37 @@ static const uint8_t child_payload_size[] = { RX_PW_P0, RX_PW_P1, RX_PW_P2, RX_P
 // register writing/reading extractions
 uint8_t RF24_read_register(uint8_t reg, uint8_t* buf, uint8_t len) {
 	uint8_t status;
-	CSN_set_level(false);
-	status = SPI_0_exchange_byte(R_REGISTER | (REGISTER_MASK & reg));
-	SPI_0_read_block(buf, len);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	status = RF24_spi_exchange_byte(R_REGISTER | (REGISTER_MASK & reg));
+	RF24_spi_read_block(buf, len);
+	RF24_csn_set(true);
 	return status;
 }
 
 uint8_t RF24_read_one_register(uint8_t reg) {
 	uint8_t val = 0;
-	CSN_set_level(false);
-	SPI_0_exchange_byte(R_REGISTER | (REGISTER_MASK & reg));
-	val = SPI_0_exchange_byte(0xFF);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	RF24_spi_exchange_byte(R_REGISTER | (REGISTER_MASK & reg));
+	val = RF24_spi_exchange_byte(0xFF);
+	RF24_csn_set(true);
 	return val;
 }
 
 uint8_t RF24_write_register(uint8_t reg, uint8_t* buf, uint8_t len) {
 	uint8_t status;
-	CSN_set_level(false);
-	status = SPI_0_exchange_byte(W_REGISTER | (REGISTER_MASK & reg));
-	SPI_0_write_block(buf, len);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	status = RF24_spi_exchange_byte(W_REGISTER | (REGISTER_MASK & reg));
+	RF24_spi_write_block(buf, len);
+	RF24_csn_set(true);
 	return status;
 }
 
 uint8_t RF24_write_one_register(uint8_t reg, uint8_t val) {
 	uint8_t status;
-	CSN_set_level(false);
-	status = SPI_0_exchange_byte(W_REGISTER | (REGISTER_MASK & reg));
-	SPI_0_exchange_byte(val);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	status = RF24_spi_exchange_byte(W_REGISTER | (REGISTER_MASK & reg));
+	RF24_spi_exchange_byte(val);
+	RF24_csn_set(true);
 	return status;
 }
 
@@ -61,13 +61,13 @@ uint8_t RF24_write_one_register(uint8_t reg, uint8_t val) {
 uint8_t RF24_write_payload(void* buf, uint8_t data_len, uint8_t writeType) {
 	uint8_t status;
 	uint8_t blank_len = dynamic_payloads_enabled ? 0 : payload_size - data_len;
-	CSN_set_level(false);
-	status = SPI_0_exchange_byte(writeType);
-	SPI_0_write_block(buf, data_len);
+	RF24_csn_set(false);
+	status = RF24_spi_exchange_byte(writeType);
+	RF24_spi_write_block(buf, data_len);
 	while (blank_len--) {
-		SPI_0_exchange_byte(0);
+		RF24_spi_exchange_byte(0);
 	}
-	CSN_set_level(true);
+	RF24_csn_set(true);
 	return status;
 }
 
@@ -77,34 +77,34 @@ uint8_t RF24_read_payload(void* buf, uint8_t data_len) {
 		data_len = payload_size;
 	}
 	uint8_t blank_len = dynamic_payloads_enabled ? 0 : payload_size - data_len;
-	CSN_set_level(false);
-	status = SPI_0_exchange_byte(R_RX_PAYLOAD);
-	SPI_0_read_block(buf, data_len);
+	RF24_csn_set(false);
+	status = RF24_spi_exchange_byte(R_RX_PAYLOAD);
+	RF24_spi_read_block(buf, data_len);
 	while(blank_len--) {
-		SPI_0_exchange_byte(0xFF);
+		RF24_spi_exchange_byte(0xFF);
 	}
-	CSN_set_level(true);
+	RF24_csn_set(true);
 	return status;
 }
 
 //stuff for begin()
 void RF24_flush_rx(void) {
-	CSN_set_level(false);
-	SPI_0_exchange_byte(FLUSH_RX);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	RF24_spi_exchange_byte(FLUSH_RX);
+	RF24_csn_set(true);
 }
 
 void RF24_flush_tx(void) {
-	CSN_set_level(false);
-	SPI_0_exchange_byte(FLUSH_TX);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	RF24_spi_exchange_byte(FLUSH_TX);
+	RF24_csn_set(true);
 }
 
 void RF24_toggle_features(void) { //idk what this does
-	CSN_set_level(false);
-	SPI_0_exchange_byte(ACTIVATE);
-	SPI_0_exchange_byte(0x73);
-	CSN_set_level(true);
+	RF24_csn_set(false);
+	RF24_spi_exchange_byte(ACTIVATE);
+	RF24_spi_exchange_byte(0x73);
+	RF24_csn_set(true);
 }
 
 void RF24_set_retries(uint8_t delay, uint8_t count) {
@@ -120,7 +120,7 @@ void RF24_powerUp(void) {
 }
 
 void RF24_powerDown(void) {
-	CE_set_level(false);
+	RF24_ce_set(false);
 	RF24_write_one_register(NRF_CONFIG, RF24_read_one_register(NRF_CONFIG) & ~(1 << PWR_UP));
 }
 
@@ -224,7 +224,7 @@ void RF24_openReadingPipe(uint8_t child, uint8_t* address) {
 void RF24_startListening(void) {
 	RF24_write_one_register(NRF_CONFIG, RF24_read_one_register(NRF_CONFIG) | 1 << PRIM_RX); //enable RX
 	RF24_write_one_register(NRF_STATUS, 1 << RX_DR | 1 << TX_DS | 1 << MAX_RT); //clear interrupts
-	CE_set_level(true);
+	RF24_ce_set(true);
 	//pipe 0 always open
 	
 	//not implemented, but moved code over anyway
@@ -235,7 +235,7 @@ void RF24_startListening(void) {
 }
 
 void RF24_stopListening(void) {
-	CE_set_level(false);
+	RF24_ce_set(false);
 	_delay_us(200); //didn't implement txDelay, so just using a num
 	
 	//again didn't implement, but here just because
@@ -251,9 +251,9 @@ void RF24_stopListening(void) {
 }
 
 uint8_t get_status() {
-    CSN_set_level(false);
-    uint8_t status = SPI_0_exchange_byte(RF24_NOP);
-    CSN_set_level(true);
+    RF24_csn_set(false);
+    uint8_t status = RF24_spi_exchange_byte(RF24_NOP);
+    RF24_csn_set(true);
     return status;
 }
 
@@ -261,9 +261,9 @@ void RF24_write(void* buf, uint8_t len, bool multicast) {
 	//cant do multicast == true w/o enabling dynamic ack (check RF24)
 	RF24_write_payload(buf, len, multicast ? W_TX_PAYLOAD_NO_ACK : W_TX_PAYLOAD);
     _delay_us(10);
-	CE_set_level(true);
+	RF24_ce_set(true);
 	_delay_us(10);
-	CE_set_level(false);
+	RF24_ce_set(false);
 
     while (!(get_status() & ((1 << TX_DS) | (1 << MAX_RT)))) {
         _delay_ms(1);

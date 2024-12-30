@@ -7,14 +7,21 @@
 #include <util/delay.h>
 #include <string.h>
 #include <stdio.h>
+#include <avr/pgmspace.h>
 
+#include "Scheduler.h"
 #include "utils.h"
+#include "bmp280/bmp280.h"
 
 extern "C" {
-    #include "rf24/nrf_connect.h"
-    #include "rf24/RF24.h"
-    #include "rf24/RF24MQTTGateway.h"
+	#include "rf24/RF24_spi.h"
+	#include "rf24/RF24.h"
 }
+
+#include "rf24/MQTTGateway.h"
+
+BMP280 airSensor(0x77);
+BMP280 waterSensor(0x76);
 
 uint8_t gateway_address[6] = { "NrfMQ" };
 const uint8_t gateway_channel = 0x6f;
@@ -54,71 +61,18 @@ uint16_t getBatteryVoltage() {
     return voltage;                           // millivolts
 }
 
-int8_t getInternalTemperature() {
-    ADMUX = (1 << REFS1) | (1 << REFS0) |                          // 1.1V reference
-            (1 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0); // select Temperature Sensor
-
-    ADCSRA = (1 << ADEN) |                      // enable ADC
-    (0 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); // ADC Prescaler Selections Div8
-
-    _delay_ms(2);
-
-    ADCSRA |= (1 << ADSC);                   // Start AD conversion
-    while(bit_is_set(ADCSRA, ADSC));         // Detect end-of-conversion
-
-    int8_t temp = ADC - 317;
-    ADCSRA &= ~(1 << ADEN);                  // disable ADC
-    return temp;
-}
-
-uint8_t getWatertankLevel() {
-    const uint8_t PORD_MASK = 0b11111100;
-    const uint8_t PORB_MASK = 0b00000011;
-    const uint8_t LEVELS[9] = {0, 10, 20, 30, 40, 50, 75, 100, 110};
-
-    // enable pullup
-    PORTD |= PORD_MASK;
-    PORTB |= PORB_MASK;
-    _delay_ms(1); // recharge parasite capacitance
-
-    uint8_t electrodes = ~((PIND & PORD_MASK) >> 2 | (PINB & PORB_MASK) << 6);
-
-    // disable pullup
-    PORTD &= ~PORD_MASK;
-    PORTB &= ~PORB_MASK;
-
-    uint8_t level = 0;
-    for(int i = 0; i < 8; i++) {
-        if(electrodes & 1) {
-            level++;
-            } else {
-            break;
-        }
-        electrodes >>= 1;
-    }
-    return LEVELS[level];
-}
-
-#include <avr/pgmspace.h>
-const char temp_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_t/config";
-const char temp_conf_payload[] PROGMEM  = R"({"uniq_id":"wttemp","name":"Temperature","dev_cla":"temperature","stat_t":"home/watertank","unit_of_meas":"°C","val_tpl":"{{value_json.temp}}","dev":{"ids":["231ed3"],"name":"Watertank Sensor","mf":"Tsukihime","mdl":"nRF24 Watertank Sensor"}})";
-
-const char lvl_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_l/config";
-const char lvl_conf_payload[] PROGMEM  = R"({"uniq_id":"wtlvl","name":"Water level","stat_t":"home/watertank","unit_of_meas":"%","icon":"mdi:water-percent","val_tpl":"{{value_json.lvl}}","dev":{"ids":["231ed3"]}})";
-
-const char batt_conf_topic[] PROGMEM  = "homeassistant/sensor/watertank_b/config";
-const char batt_conf_payload[] PROGMEM  = R"({"uniq_id":"wtbatt","name":"Battery","dev_cla":"battery","stat_t":"home/watertank","unit_of_meas":"%","val_tpl":"{{value_json.batt}}","dev":{"ids":["231ed3"]}})";
-    
 void identify() {
-    RF24MQTT_sendMessage_P(temp_conf_topic, temp_conf_payload, true);
-    RF24MQTT_sendMessage_P(lvl_conf_topic, lvl_conf_payload, true);
-    RF24MQTT_sendMessage_P(batt_conf_topic, batt_conf_payload, true);
+    MQTTGateway::sendMessage_P(PSTR("homeassistant/sensor/watertank_t/config"), PSTR(R"({"uniq_id":"wttemp","name":"Temperature","dev_cla":"temperature","stat_t":"home/watertank","unit_of_meas":"°C","val_tpl":"{{value_json.temp}}","dev":{"ids":["231ed3"],"name":"Watertank Sensor","mf":"Tsukihime","mdl":"nRF24 Watertank Sensor"}})"), true);
+    MQTTGateway::sendMessage_P(PSTR("homeassistant/sensor/watertank_tw/config"), PSTR(R"({"uniq_id":"wttempw","name":"TemperatureW","dev_cla":"temperature","stat_t":"home/watertank","unit_of_meas":"°C","val_tpl":"{{value_json.tempw}}","dev":{"ids":["231ed3"]}})"), true);
+    MQTTGateway::sendMessage_P(PSTR("homeassistant/sensor/watertank_p/config"), PSTR(R"({"uniq_id":"wtpress","name":"Pressure","dev_cla":"pressure","stat_t":"home/watertank","unit_of_meas":"hPa","val_tpl":"{{value_json.press}}","dev":{"ids":["231ed3"]}})"), true);
+    MQTTGateway::sendMessage_P(PSTR("homeassistant/sensor/watertank_lmm/config"), PSTR(R"({"uniq_id":"wtlvlmm","name":"Water level","stat_t":"home/watertank","unit_of_meas":"mm","icon":"mdi:waves-arrow-up","val_tpl":"{{value_json.lvlmm}}","dev":{"ids":["231ed3"]}})"), true);
+    MQTTGateway::sendMessage_P(PSTR("homeassistant/sensor/watertank_b/config"), PSTR(R"({"uniq_id":"wtbatt","name":"Battery","dev_cla":"battery","stat_t":"home/watertank","unit_of_meas":"%","val_tpl":"{{value_json.batt}}","dev":{"ids":["231ed3"]}})"), true);
 }
 
 void initAll() {
     clock_prescale_set(clock_div_8); // switch clock to 1 MHz
     PRR |= (1 << PRTIM0) | (1 << PRTIM1) | (1 << PRTIM2) | // disable all timers
-           (1 << PRUSART0) | (1 << PRTWI);                 // disable USART & TWI 
+           (1 << PRUSART0);                                // disable USART 
 
     ACSR |= (1 << ACD);  // disable Analog Comparator
     sleep_bod_disable(); // disable the BOD while sleeping
@@ -131,7 +85,7 @@ void initAll() {
     DDRD = 0x00;
     PORTD = 0xFF;
 
-    NRF_connect_init();
+    RF24_spi_init();
 
     RF24_begin();
     RF24_setPALevel(RF24_PA_MAX);
@@ -143,53 +97,72 @@ void initAll() {
     RF24_openWritingPipe(gateway_address);
     RF24_stopListening();
 
+	airSensor.init();
+	waterSensor.init();
+
     initWatchdog();
+}
+
+void measure() {
+	const uint8_t MAX_UPDATE_PERIOD = 5;
+	static uint8_t update_counter = 0;
+	static int16_t old_level = 0;
+
+	waterSensor.takeForcedMeasurement(MODE_FORCED, SAMPLING_X2, SAMPLING_X16);
+	airSensor.takeForcedMeasurement(MODE_FORCED, SAMPLING_X2, SAMPLING_X16);
+	int16_t water_level_mm = (((int32_t)waterSensor.getPressurePa()
+								- (int32_t)airSensor.getPressurePa()) * 100) / 981;	
+
+	if(water_level_mm != old_level || update_counter == 0) {
+		uint8_t battery_level = clamp(round_div((int16_t)getBatteryVoltage() - 2000, 10), 0, 100);
+		int16_t water_temp = round_div(waterSensor.getTemperature(), 10);
+		int16_t air_temp = round_div(airSensor.getTemperature(), 10);
+		
+		char json[80] = "";
+		char string[13];
+			
+		int32ToStrFixedPoint(battery_level, string);
+		strcat(json, "{\"batt\":");
+		strcat(json, string);
+		
+		int32ToStrFixedPoint(water_temp, string, 1);
+		strcat(json, ",\"tempw\":");
+		strcat(json, string);
+		
+		int32ToStrFixedPoint(air_temp, string, 1);
+		strcat(json, ",\"temp\":");
+		strcat(json, string);
+		
+		int32ToStrFixedPoint(airSensor.getPressurePa(), string, 2);
+		strcat(json, ",\"press\":");
+		strcat(json, string);
+		
+		int32ToStrFixedPoint(water_level_mm, string);
+		strcat(json, ",\"lvlmm\":");
+		strcat(json, string);
+
+		strcat(json, "}");
+
+		MQTTGateway::sendMessage("home/watertank", json, false);
+		
+		old_level = water_level_mm;
+		update_counter = 0;
+	}
+	
+	if(++update_counter >= MAX_UPDATE_PERIOD) update_counter = 0;
 }
 
 int main(void) {
     initAll();
-    RF24MQTT_sendShortMessage("watertank", "Start!");
     identify();
+	measure();
 
-    const uint8_t period = 75; // 8sec * 75 = update every 10 min or on level change every 8 sec
-    const uint16_t identify_period = 5400; // 8sec * 5400 = update every 12 hours
-    uint8_t counter = 0;
-    uint16_t identify_counter = 0;
-    uint8_t level = 0;
-    uint8_t old_level = 0;
-
+	Scheduler::setTimer(identify, 2700, true); // 8sec * 2700 = update every 6 hours
+	Scheduler::setTimer(measure, 15, true);    // 8sec * 15   = update every 2 min
+	
     while (1) {
-        level = getWatertankLevel();
-
-        if(level != old_level || counter == 0) {
-            char buff[40] = "";
-            char string[13];
-            
-            int16_t batt = clamp(((int16_t)getBatteryVoltage() - 2000 + 5) / 10, 0, 100); 
-            int32ToStrFixedPoint(batt, string);
-            strcat(buff,"{\"batt\":");
-            strcat(buff, string);
-
-            int32ToStrFixedPoint(level, string);
-            strcat(buff,",\"lvl\":");
-            strcat(buff, string);
-
-            int32ToStrFixedPoint(getInternalTemperature(), string);
-            strcat(buff,",\"temp\":");
-            strcat(buff, string);
-            strcat(buff,"}");
-
-            RF24MQTT_sendMessage("home/watertank", buff, false);
-        }
-
-        old_level = level;
-
-        if(++counter >= period) counter = 0;
-        if(++identify_counter >= identify_period) {
-            identify_counter = 0;
-            identify();
-        }
-        
+		Scheduler::TimerISR();
+		while(Scheduler::processTask());		
         enterSleep();
     }
 }

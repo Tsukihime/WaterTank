@@ -41,6 +41,18 @@
       </ToolNumber>
       <ToolName xmlns="">Simulator</ToolName>
     </com_atmel_avrdbg_tool_simulator>
+    <AsfFrameworkConfig>
+      <framework-data xmlns="">
+        <options />
+        <configurations />
+        <files />
+        <documentation help="" />
+        <offline-documentation help="" />
+        <dependencies>
+          <content-extension eid="atmel.asf" uuidref="Atmel.ASF" version="3.49.1" />
+        </dependencies>
+      </framework-data>
+    </AsfFrameworkConfig>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
     <ToolchainSettings>
@@ -163,16 +175,28 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="bmp280\bmp280.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="bmp280\bmp280.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="i2chw\i2cmaster.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="i2chw\twimaster.c">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="main.cpp">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rf24\nRF24L01.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\nrf_connect.c">
+    <Compile Include="rf24\RF24_SPI.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\nrf_connect.h">
+    <Compile Include="rf24\RF24_SPI.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rf24\RF24.c">
@@ -181,10 +205,16 @@
     <Compile Include="rf24\RF24.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\RF24MQTTGateway.c">
+    <Compile Include="rf24\MQTTGateway.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\RF24MQTTGateway.h">
+    <Compile Include="rf24\MQTTGateway.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Scheduler.cpp">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Scheduler.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="utils.cpp">
@@ -195,6 +225,8 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="i2chw" />
+    <Folder Include="bmp280" />
     <Folder Include="rf24" />
   </ItemGroup>
   <Import Project="$(AVRSTUDIO_EXE_PATH)\\Vs\\Compiler.targets" />
