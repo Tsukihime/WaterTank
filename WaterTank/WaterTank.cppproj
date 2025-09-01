@@ -193,22 +193,16 @@
     <Compile Include="rf24\nRF24L01.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\RF24_SPI.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="rf24\RF24_SPI.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="rf24\RF24.c">
+    <Compile Include="rf24\RF24.cpp">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="rf24\RF24.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\MQTTGateway.cpp">
+    <Compile Include="rf24\RF24MQTTGateway.cpp">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="rf24\MQTTGateway.h">
+    <Compile Include="rf24\RF24MQTTGateway.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Scheduler.cpp">
