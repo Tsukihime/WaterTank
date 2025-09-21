@@ -98,7 +98,7 @@ void initAll() {
     radio.setPALevel(RF24_PA_MAX);
     radio.enableDynamicPayloads();
     radio.setDataRate(RF24_1MBPS);
-    radio.setCRCLength(RF24_CRC_8);
+    radio.setCRCLength(RF24_CRC_16);
     radio.setChannel(gateway_channel);
     radio.setAutoAck(true);
     radio.openWritingPipe(gateway_address);
