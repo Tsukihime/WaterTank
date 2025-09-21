@@ -65,19 +65,19 @@ void BMP280::measure() {
     temp_raw = ((int32_t)data[3] << 12) | ((int32_t)data[4] << 4) | (data[5] >> 4);
 
     // Compute the temperature
-	var1 = ((((temp_raw >> 3) - ((int32_t)bmp280_cal.dig_t1 << 1))) * ((int32_t)bmp280_cal.dig_t2)) >> 11;
-	var2 = (((((temp_raw >> 4) - ((int32_t)bmp280_cal.dig_t1)) * ((temp_raw >> 4) - ((int32_t)bmp280_cal.dig_t1))) >> 12) * ((int32_t)bmp280_cal.dig_t3)) >> 14;
+	var1 = ((((temp_raw >> 3) - ((int32_t)_bmp280_cal.dig_t1 << 1))) * ((int32_t)_bmp280_cal.dig_t2)) >> 11;
+	var2 = (((((temp_raw >> 4) - ((int32_t)_bmp280_cal.dig_t1)) * ((temp_raw >> 4) - ((int32_t)_bmp280_cal.dig_t1))) >> 12) * ((int32_t)_bmp280_cal.dig_t3)) >> 14;
 	t_fine = var1 + var2;
 	_bmp280_temp = (t_fine * 5 + 128) >> 8;
 
     // Compute the pressure
 	var1 = (((int32_t)t_fine) >> 1) - (int32_t)64000;
-	var2 = (((var1 >> 2) * (var1 >> 2)) >> 11) * ((int32_t)bmp280_cal.dig_p6);
-	var2 = var2 + ((var1 * ((int32_t)bmp280_cal.dig_p5)) << 1);
-	var2 = (var2 >> 2) + (((int32_t)bmp280_cal.dig_p4) << 16);
-	var1 = (((bmp280_cal.dig_p3 * (((var1 >> 2) * (var1 >> 2)) >> 13)) >> 3)
-	       + ((((int32_t)bmp280_cal.dig_p2) * var1) >> 1)) >> 18;
-	var1 = ((((32768 + var1)) * ((int32_t)bmp280_cal.dig_p1)) >> 15);
+	var2 = (((var1 >> 2) * (var1 >> 2)) >> 11) * ((int32_t)_bmp280_cal.dig_p6);
+	var2 = var2 + ((var1 * ((int32_t)_bmp280_cal.dig_p5)) << 1);
+	var2 = (var2 >> 2) + (((int32_t)_bmp280_cal.dig_p4) << 16);
+	var1 = (((_bmp280_cal.dig_p3 * (((var1 >> 2) * (var1 >> 2)) >> 13)) >> 3)
+	       + ((((int32_t)_bmp280_cal.dig_p2) * var1) >> 1)) >> 18;
+	var1 = ((((32768 + var1)) * ((int32_t)_bmp280_cal.dig_p1)) >> 15);
 
 	if (var1 == 0) {
 		_bmp280_pres = 0;
@@ -88,9 +88,9 @@ void BMP280::measure() {
 		} else {
 			_bmp280_pres = (_bmp280_pres / (uint32_t)var1) * 2;
 		}
-		var1 = (((int32_t)bmp280_cal.dig_p9) * ((int32_t)(((_bmp280_pres >> 3) * (_bmp280_pres >> 3)) >> 13))) >> 12;
-		var2 = (((int32_t)(_bmp280_pres >> 2)) * ((int32_t)bmp280_cal.dig_p8)) >> 13;
-		_bmp280_pres = (uint32_t)((int32_t)_bmp280_pres + ((var1 + var2 + bmp280_cal.dig_p7) >> 4));
+		var1 = (((int32_t)_bmp280_cal.dig_p9) * ((int32_t)(((_bmp280_pres >> 3) * (_bmp280_pres >> 3)) >> 13))) >> 12;
+		var2 = (((int32_t)(_bmp280_pres >> 2)) * ((int32_t)_bmp280_cal.dig_p8)) >> 13;
+		_bmp280_pres = (uint32_t)((int32_t)_bmp280_pres + ((var1 + var2 + _bmp280_cal.dig_p7) >> 4));
 	}
 }
 
@@ -113,6 +113,6 @@ void BMP280::readMem(uint8_t reg, uint8_t buff[], uint8_t bytes) {
 }
 
 void BMP280::getCalibration() {
-    memset(bmp280_cal.bytes, 0, sizeof(bmp280_cal));
-    readMem(BMP280_CAL_REG_FIRST, bmp280_cal.bytes, BMP280_CAL_DATA_SIZE);
+    memset(_bmp280_cal.bytes, 0, sizeof(_bmp280_cal));
+    readMem(BMP280_CAL_REG_FIRST, _bmp280_cal.bytes, BMP280_CAL_DATA_SIZE);
 }

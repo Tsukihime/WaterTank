@@ -34,6 +34,36 @@ const uint8_t STANDBY_MS_1000 = 0x05;
 const uint8_t STANDBY_MS_2000 = 0x06;
 const uint8_t STANDBY_MS_4000 = 0x07;
 
+const uint8_t BMP280_ID_REG = 0xD0;
+const uint8_t BMP280_ID_VAL = 0x58;
+const uint8_t BMP280_CAL_REG_FIRST = 0x88;
+const uint8_t BMP280_CAL_REG_LAST = 0xA1;
+const uint8_t BMP280_CAL_DATA_SIZE = BMP280_CAL_REG_LAST - BMP280_CAL_REG_FIRST + 1;
+const uint8_t BMP280_STATUS_REG = 0xF3;
+const uint8_t BMP280_CONTROL_REG = 0xF4;
+const uint8_t BMP280_CONFIG_REG = 0xF5;
+const uint8_t BMP280_PRES_REG = 0xF7;
+const uint8_t BMP280_TEMP_REG = 0xFA;
+const uint8_t BMP280_RAWDATA_BYTES = 6; // 3 bytes pressure, 3 bytes temperature
+
+union BMP280_CAL_DATA {
+    uint8_t bytes[BMP280_CAL_DATA_SIZE];
+    struct {
+        uint16_t dig_t1;
+        int16_t  dig_t2;
+        int16_t  dig_t3;
+        uint16_t dig_p1;
+        int16_t  dig_p2;
+        int16_t  dig_p3;
+        int16_t  dig_p4;
+        int16_t  dig_p5;
+        int16_t  dig_p6;
+        int16_t  dig_p7;
+        int16_t  dig_p8;
+        int16_t  dig_p9;
+    };
+};
+
 /**
  * @class BMP280
  * @brief Class for interacting with BMP280 sensor for temperature and pressure measurement.
@@ -71,44 +101,17 @@ public:
      */
     uint32_t getPressurePa() const { return _bmp280_pres; }
 
-private:
+    const BMP280_CAL_DATA* getCalibrationData() const { return &_bmp280_cal; }
+        
+protected:
     void writeMem(uint8_t reg, uint8_t value);
     void readMem(uint8_t reg, uint8_t buff[], uint8_t bytes);
     void getCalibration();
     
-    static const uint8_t BMP280_ID_REG = 0xD0;
-    static const uint8_t BMP280_ID_VAL = 0x58;
-    static const uint8_t BMP280_CAL_REG_FIRST = 0x88;
-    static const uint8_t BMP280_CAL_REG_LAST = 0xA1;
-    static const uint8_t BMP280_CAL_DATA_SIZE = BMP280_CAL_REG_LAST - BMP280_CAL_REG_FIRST + 1;
-    static const uint8_t BMP280_STATUS_REG = 0xF3;
-    static const uint8_t BMP280_CONTROL_REG = 0xF4;
-    static const uint8_t BMP280_CONFIG_REG = 0xF5;
-    static const uint8_t BMP280_PRES_REG = 0xF7;
-    static const uint8_t BMP280_TEMP_REG = 0xFA;
-    static const uint8_t BMP280_RAWDATA_BYTES = 6; // 3 bytes pressure, 3 bytes temperature
-
     uint8_t _address;
     int32_t _bmp280_temp;
     uint32_t _bmp280_pres;
-
-    union {
-        uint8_t bytes[BMP280_CAL_DATA_SIZE];
-        struct {
-            uint16_t dig_t1;
-            int16_t  dig_t2;
-            int16_t  dig_t3;
-            uint16_t dig_p1;
-            int16_t  dig_p2;
-            int16_t  dig_p3;
-            int16_t  dig_p4;
-            int16_t  dig_p5;
-            int16_t  dig_p6;
-            int16_t  dig_p7;
-            int16_t  dig_p8;
-            int16_t  dig_p9;
-        };
-    } bmp280_cal;
+    union BMP280_CAL_DATA _bmp280_cal;
 };
 
 #endif /* BMP280_H_ */

@@ -49,22 +49,25 @@ public:
     void openReadingPipe(uint8_t child, uint8_t* address);
     void startListening();
     void stopListening();
-    bool write(uint8_t* buf, uint8_t len, bool multicast);
-    void read(uint8_t* buf, uint8_t len);
+    bool write(void* buf, uint8_t len, bool multicast);
+    void read(void* buf, uint8_t len);
     void whatHappened(uint8_t* tx_ok, uint8_t* tx_fail, uint8_t* rx_ready);
     void powerUp();
     void powerDown();
     void setCRCLength(uint8_t length);
     void setAutoAck(bool ack);
+	void setRetries(uint8_t delay, uint8_t count);
 
 private:
+	uint8_t read_command(uint8_t command, uint8_t* buf, uint8_t len);
+	uint8_t write_command(uint8_t command, uint8_t* buf, uint8_t len);
     uint8_t read_register(uint8_t reg, uint8_t* buf, uint8_t len);
     uint8_t read_one_register(uint8_t reg);
     uint8_t write_register(uint8_t reg, uint8_t* buf, uint8_t len);
     uint8_t write_one_register(uint8_t reg, uint8_t val);
     uint8_t write_payload(uint8_t* buf, uint8_t data_len, uint8_t writeType);
     uint8_t read_payload(uint8_t* buf, uint8_t data_len);
-    void set_retries(uint8_t delay, uint8_t count);
+
     void toggle_features();
     void flush_rx();
     void flush_tx();
