@@ -59,8 +59,8 @@ public:
 	void setRetries(uint8_t delay, uint8_t count);
 
 private:
-	uint8_t read_command(uint8_t command, uint8_t* buf, uint8_t len);
-	uint8_t write_command(uint8_t command, uint8_t* buf, uint8_t len);
+    uint8_t read_command(uint8_t command, uint8_t* buf, uint8_t len);
+    uint8_t write_command(uint8_t command, uint8_t* buf, uint8_t len);
     uint8_t read_register(uint8_t reg, uint8_t* buf, uint8_t len);
     uint8_t read_one_register(uint8_t reg);
     uint8_t write_register(uint8_t reg, uint8_t* buf, uint8_t len);
