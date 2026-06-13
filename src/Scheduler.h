@@ -29,11 +29,11 @@ class Scheduler {
         static bool resetTimer(TaskPointer task);
         static bool setTask(TaskPointer task);
 
-        /** 
+        /**
          * @brief Timer interrupt service routine (ISR) to handle timer countdown.
-         * 
-         * This function should be called in the interrupt context of a hardware timer.
-         * The duration between calls determines the length of one tick used by the 
+         *
+         * This function may be called in the interrupt context of a hardware timer.
+         * The duration between calls determines the length of one tick used by the
          * setTimer(...) function with period_ticks.
          */
         static inline void TimerISR() {

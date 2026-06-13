@@ -8,7 +8,7 @@ TaskPointer Scheduler::taskQueue[MAX_TASK_QUEUE_SIZE];
 uint8_t Scheduler::taskQueueSize = 0;
 
 /**
- * @brief Processes a task from the task queue.
+ * @brief Processes a one task from the task queue.
  *
  * This function removes one task from the task queue, executes it,
  * and returns true. If the task queue is empty, it returns false.
@@ -32,13 +32,6 @@ bool Scheduler::processTask() {
     currentTask();
     return true;
 }
-
-/**
- * @brief Runs an infinite loop to process tasks.
- *
- * This function enters an infinite loop that continuously processes
- * tasks in the task queue.
- */
 
 /**
  * @brief Enters an infinite loop to process tasks.
