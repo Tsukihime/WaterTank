@@ -10,10 +10,11 @@
 #include "config.h"
 #include <MQTTGateway.h>
 #include <bmp280.h>
-#include "utils.h"
-#include "Scheduler.h"
+#include <utils.h>
+#include <Scheduler.h>
+#include <Battery.h>
 
-#define CS_PIN      PIN_PA6
+#define CS_PIN      PIN_PA7
 #define IRQ_PIN     PIN_PA4
 
 RFM69 radio(CS_PIN, IRQ_PIN);
@@ -41,40 +42,6 @@ struct SETTINGS {
     char id[6];
 } settings;
 
-uint16_t getBatteryVoltage() {
-    ADC0.CTRLA |= ADC_ENABLE_bm;
-    
-    ADC0.CTRLC = ADC_PRESC_DIV8_gc      // prescaler /8 ← optimal for 1 MHz (125 kHz)
-                | ADC_REFSEL_VDDREF_gc  // Vref = Vcc
-                | 0 << ADC_SAMPCAP_bp;  // sample cap off (default)
-
-    ADC0.MUXPOS = ADC_MUXPOS_INTREF_gc; // input = internal bandgap
-
-    _delay_us(200);
-
-    ADC0.COMMAND = ADC_STCONV_bm;
-    while (ADC0.COMMAND & ADC_STCONV_bm);
-
-    uint16_t adc_value = ADC0.RES;
-    ADC0.CTRLA &= ~ADC_ENABLE_bm;
-
-    if (adc_value == 0) return 0;
-
-    uint32_t voltage = (uint32_t)settings.bandgap * 1024UL / adc_value;
-    return (uint16_t)voltage;
-}
-
-uint8_t calcBatteryLevel(uint16_t voltage_mv) {
-    if (voltage_mv >= 3200) return 100;                            // ≥3.20V = 100%
-    if (voltage_mv >= 3000) return 100 - (3200 - voltage_mv) / 20; // 3.20V→100%, 3.00V→90%
-    if (voltage_mv >= 2800) return 90  - (3000 - voltage_mv) / 10; // 3.00V→90%,  2.80V→70%
-    if (voltage_mv >= 2600) return 70  - (2800 - voltage_mv) / 10; // 2.80V→70%,  2.60V→50%
-    if (voltage_mv >= 2400) return 50  - (2600 - voltage_mv) / 10; // 2.60V→50%,  2.40V→30%
-    if (voltage_mv >= 2200) return 30  - (2400 - voltage_mv) / 13; // 2.40V→30%,  2.20V→15%
-    if (voltage_mv >= 2000) return 15  - (2200 - voltage_mv) / 13; // 2.20V→15%,  2.00V→0%
-    return 0;                                                      // <2.00V = 0%
-}
-
 uint8_t renderTemplate(const char* _template, uint16_t index) {
     uint8_t c = pgm_read_byte(&_template[index]);
     if (c >= 0xFA) {
@@ -89,64 +56,67 @@ void identify() {
 }
 
 void measure() {
-    const uint8_t MAX_UPDATE_PERIOD = 5;
-    static uint8_t update_counter = 0;
+    const uint8_t MAX_SKIPPED_UPDATES = 4;
+    static uint8_t skipped_updates_count = 0;
     static int16_t old_level = 0;
 
     waterSensor.takeForcedMeasurement(MODE_FORCED, SAMPLING_X2, SAMPLING_X16);
     airSensor.takeForcedMeasurement(MODE_FORCED, SAMPLING_X2, SAMPLING_X16);
-    int16_t water_level_mm = (((int32_t)waterSensor.getPressurePa()    - (int32_t)airSensor.getPressurePa()) * 100) / 981;
+    int16_t water_level_mm = (((int32_t)waterSensor.getPressurePa() - (int32_t)airSensor.getPressurePa()) * 100) / 981;
 
-    if(water_level_mm != old_level || update_counter == 0) {
-        int16_t voltage = getBatteryVoltage();
-        uint8_t battery_level = calcBatteryLevel(voltage);
-        int16_t water_temp = round_div(waterSensor.getTemperature(), 10);
-        int16_t air_temp = round_div(airSensor.getTemperature(), 10);
-        
-        char json[100] = "";
-        char string[13];
-        
-        int32ToStrFixedPoint(battery_level, string);
-        strcat(json, "{\"batt\":");
-        strcat(json, string);
-        
-        int32ToStrFixedPoint(voltage, string);
-        strcat(json, ",\"vbatt\":");
-        strcat(json, string);
-        
-        int32ToStrFixedPoint(water_temp, string, 1);
-        strcat(json, ",\"tempw\":");
-        strcat(json, string);
-        
-        int32ToStrFixedPoint(air_temp, string, 1);
-        strcat(json, ",\"temp\":");
-        strcat(json, string);
-        
-        int32ToStrFixedPoint(airSensor.getPressurePa(), string, 2);
-        strcat(json, ",\"press\":");
-        strcat(json, string);
-        
-        int32ToStrFixedPoint(water_level_mm, string);
-        strcat(json, ",\"lvlmm\":");
-        strcat(json, string);
-
-        int32ToStrFixedPoint(downlink_rssi, string);
-        strcat(json, ",\"d\":");
-        strcat(json, string);
-
-        int32ToStrFixedPoint(uplink_rssi, string);
-        strcat(json, ",\"u\":");
-        strcat(json, string);
-
-        strcat(json, "}");
-
-        mqtt.publish(state_topic, json, false);
-        
-        old_level = water_level_mm;
-        update_counter = 0;
-    }
+    bool level_not_changed = water_level_mm == old_level;
+    bool limit_not_reached = skipped_updates_count < MAX_SKIPPED_UPDATES;
     
-    if(++update_counter >= MAX_UPDATE_PERIOD) update_counter = 0;
+    if (level_not_changed && limit_not_reached) {
+        skipped_updates_count++;
+        return;
+    }
+    skipped_updates_count = 0;   
+    old_level = water_level_mm;
+
+    int16_t voltage = Battery::readMillivolts(settings.bandgap);
+    uint8_t battery_level = Battery::getPercentageAlkaline(voltage, 2);
+    int16_t water_temp = round_div(waterSensor.getTemperature(), 10);
+    int16_t air_temp = round_div(airSensor.getTemperature(), 10);
+    
+    char json[100] = "";
+    char string[13];
+    
+    int32ToStrFixedPoint(battery_level, string);
+    strcat(json, "{\"batt\":");
+    strcat(json, string);
+    
+    int32ToStrFixedPoint(voltage, string);
+    strcat(json, ",\"vbatt\":");
+    strcat(json, string);
+    
+    int32ToStrFixedPoint(water_temp, string, 1);
+    strcat(json, ",\"tempw\":");
+    strcat(json, string);
+    
+    int32ToStrFixedPoint(air_temp, string, 1);
+    strcat(json, ",\"temp\":");
+    strcat(json, string);
+    
+    int32ToStrFixedPoint(airSensor.getPressurePa(), string, 2);
+    strcat(json, ",\"press\":");
+    strcat(json, string);
+    
+    int32ToStrFixedPoint(water_level_mm, string);
+    strcat(json, ",\"lvlmm\":");
+    strcat(json, string);
+
+    int32ToStrFixedPoint(downlink_rssi, string);
+    strcat(json, ",\"d\":");
+    strcat(json, string);
+
+    int32ToStrFixedPoint(uplink_rssi, string);
+    strcat(json, ",\"u\":");
+    strcat(json, string);
+
+    strcat(json, "}");
+
+    mqtt.publish(state_topic, json, false);
 }
 
 void generateUID(char uid[6]) {
@@ -190,9 +160,22 @@ void sleep_delay(uint16_t seconds) {
     PORTA.PIN4CTRL = irq_backup;
 }
 
+void reboot() {
+    _PROTECTED_WRITE(RSTCTRL.SWRR, RSTCTRL_SWRE_bm);
+}
+
 void setupRadio() {
-    while(!radio.initialize(FREQUENCY, NODEID, NETWORKID)) {
-        sleep_delay(5);
+    // HW Reset
+    PORTA.OUTSET = PIN6_bm;
+    PORTA.DIRSET = PIN6_bm;
+    _delay_us(100);
+    PORTA.DIRCLR = PIN6_bm;
+    PORTA.PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc;    
+    _delay_ms(10);
+
+    if(!radio.initialize(FREQUENCY, NODEID, NETWORKID)) {
+        sleep_delay(30);
+        reboot();
     }
     radio.setPowerLevel(31);
     radio.encrypt(ENCRYPTKEY);
@@ -202,8 +185,7 @@ void setupRadio() {
 
 void setupHardware() {
     // === 1. Unused pins: disable digital input buffer ===
-    PORTA.PIN6CTRL = PORT_ISC_INPUT_DISABLE_gc;
-    PORTA.PIN7CTRL = PORT_ISC_INPUT_DISABLE_gc;
+    PORTA.PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc;
     PORTB.PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc;
     PORTB.PIN3CTRL = PORT_ISC_INPUT_DISABLE_gc;
 
@@ -230,8 +212,6 @@ void setupHardware() {
     DAC1.CTRLA = 0;
     DAC2.CTRLA = 0;
     
-    VREF.CTRLA = (VREF.CTRLA & ~VREF_ADC0REFSEL_gm) | VREF_ADC0REFSEL_1V1_gc;
-
     // === 5. Configurable Custom Logic ===
     CCL.CTRLA = 0;
 }
@@ -272,8 +252,8 @@ void setup() {
     identify();
     measure();
 
-    Scheduler::setTimer(identify, hours(6), true);
     Scheduler::setTimer(measure, minutes(1), true);
+    Scheduler::setTimer(reboot, hours(6), true);
 }
 
 void loop() {
