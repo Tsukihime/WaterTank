@@ -145,22 +145,33 @@ void setupRTC_PIT() {
     RTC.PITINTCTRL = RTC_PI_bm;           // enable interrupt
 }
 
+void enableWDT() {
+    wdt_reset();
+    _PROTECTED_WRITE(WDT.CTRLA, WDT_PERIOD_8KCLK_gc);
+}
+
+void disableWDT() {
+    _PROTECTED_WRITE(WDT.CTRLA, WDT_PERIOD_OFF_gc);
+}
+
 void sleep_delay(uint16_t seconds) {
     uint8_t miso_backup = PORTA.PIN2CTRL;
     uint8_t irq_backup = PORTA.PIN4CTRL;
     PORTA.PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc;
     PORTA.PIN4CTRL = PORT_ISC_INPUT_DISABLE_gc;
 
+    disableWDT();
     while (seconds-- > 0) {
         set_sleep_mode(SLEEP_MODE_PWR_DOWN);
         sleep_mode();
     }
+    enableWDT();
 
     PORTA.PIN2CTRL = miso_backup;
     PORTA.PIN4CTRL = irq_backup;
 }
 
-void reboot() {
+void reset() {
     _PROTECTED_WRITE(RSTCTRL.SWRR, RSTCTRL_SWRE_bm);
 }
 
@@ -175,7 +186,7 @@ void setupRadio() {
 
     if(!radio.initialize(FREQUENCY, NODEID, NETWORKID)) {
         sleep_delay(30);
-        reboot();
+        reset();
     }
     radio.setPowerLevel(31);
     radio.encrypt(ENCRYPTKEY);
@@ -183,7 +194,7 @@ void setupRadio() {
     radio.sleep();
 }
 
-void setupHardware() {
+void disableUnusedPeripherals() {
     // === 1. Unused pins: disable digital input buffer ===
     PORTA.PIN5CTRL = PORT_ISC_INPUT_DISABLE_gc;
     PORTB.PIN2CTRL = PORT_ISC_INPUT_DISABLE_gc;
@@ -238,8 +249,8 @@ void setup() {
                                             RSTCTRL_SWRF_bm);
     RSTCTRL.RSTFR = RSTCTRL.RSTFR;
     sei();
-
-    setupHardware();
+    enableWDT();
+    disableUnusedPeripherals();
     setupRTC_PIT();
     loadSettings();
     setupRadio();
@@ -253,7 +264,7 @@ void setup() {
     measure();
 
     Scheduler::setTimer(measure, minutes(1), true);
-    Scheduler::setTimer(reboot, hours(6), true);
+    Scheduler::setTimer(reset, hours(6), true);
 }
 
 void loop() {
