@@ -175,7 +175,7 @@ void reset() {
     _PROTECTED_WRITE(RSTCTRL.SWRR, RSTCTRL_SWRE_bm);
 }
 
-void setupRadio() {
+bool setupRadio() {
     // HW Reset
     PORTA.OUTSET = PIN6_bm;
     PORTA.DIRSET = PIN6_bm;
@@ -185,13 +185,13 @@ void setupRadio() {
     _delay_ms(10);
 
     if(!radio.initialize(FREQUENCY, NODEID, NETWORKID)) {
-        sleep_delay(30);
-        reset();
+        return false;
     }
     radio.setPowerLevel(31);
     radio.encrypt(ENCRYPTKEY);
     //radio.setFrequency(433920000); //set frequency to some custom frequency
     radio.sleep();
+    return true;
 }
 
 void disableUnusedPeripherals() {
@@ -243,20 +243,16 @@ void loadSettings() {
 }
 
 void setup() {
-    bool isExternalReset = RSTCTRL.RSTFR & (RSTCTRL_EXTRF_bm |
-                                            RSTCTRL_UPDIRF_bm |
-                                            RSTCTRL_PORF_bm |
-                                            RSTCTRL_SWRF_bm);
-    RSTCTRL.RSTFR = RSTCTRL.RSTFR;
     sei();
     enableWDT();
     disableUnusedPeripherals();
     setupRTC_PIT();
     loadSettings();
-    setupRadio();
 
-    airSensor.begin();
-    waterSensor.begin();
+    if (!setupRadio() || !airSensor.begin() || !waterSensor.begin()) {
+        sleep_delay(30);
+        reset();
+    }
     airSensor.setSampling(MODE_FORCED, SAMPLING_X2, SAMPLING_X16, FILTER_OFF, STANDBY_MS_1);
     waterSensor.setSampling(MODE_FORCED, SAMPLING_X2, SAMPLING_X16, FILTER_OFF, STANDBY_MS_1);
 
