@@ -53,6 +53,7 @@ uint8_t renderTemplate(const char* _template, uint16_t index) {
 void identify() {
     mqtt.send(id_topic, sizeof(id_topic) - 1,
               id_payload, sizeof(id_payload) - 1, true, renderTemplate);
+    radio.sleep();
 }
 
 void measure() {
@@ -117,6 +118,7 @@ void measure() {
     strcat(json, "}");
 
     mqtt.publish(state_topic, json, false);
+    radio.sleep();
 }
 
 void generateUID(char uid[6]) {
